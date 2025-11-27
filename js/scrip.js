@@ -1,38 +1,440 @@
-// Variables globales
+// scrip.js (versión con Firebase + localStorage fallback + QR + galería pública)
+
+// ---------- CONFIGURA TU FIREBASE AQUÍ ----------
+const firebaseConfig = {
+    apiKey: "TU_API_KEY",
+    authDomain: "TU_AUTH_DOMAIN",
+    projectId: "TU_PROJECT_ID",
+    storageBucket: "TU_STORAGE_BUCKET",
+    messagingSenderId: "TU_MSG_SENDER_ID",
+    appId: "TU_APP_ID"
+};
+// Reemplaza los valores con los de tu web app en Firebase
+
+// Inicializar Firebase (compat)
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const storage = firebase.storage();
+
+// ---------- Variables globales ----------
 let slideActual = 0;
 let totalSlides = 0;
 let mensajeEditando = null;
 let fotoEliminando = null;
 let musicaReproduciendo = false;
-let fuegosArtificialesInterval = null;
-let fuegosCorazonInterval = null;
+const fotosIniciales = [ /* deja tus URLs iniciales si quieres */];
+const mensajesIniciales = [ /* puedes mantener tus iniciales si quieres */];
 
-// Datos iniciales
-const mensajesIniciales = [
-    {
-        id: 1,
-        autor: "María García",
-        texto: "¡Feliz cumpleaños! Que este nuevo año de vida esté lleno de alegría, éxito y muchos momentos inolvidables. ¡Disfruta tu día al máximo!"
-    },
-    {
-        id: 2,
-        autor: "Juan Pérez",
-        texto: "Hoy celebramos no solo un año más, sino todos los momentos maravillosos que hemos compartido. ¡Que tengas un día fantástico!"
-    },
-    {
-        id: 3,
-        autor: "Ana López",
-        texto: "Eres una persona increíble y mereces todo lo bueno que la vida te pueda dar. ¡Feliz cumpleaños, amigo!"
+document.addEventListener('DOMContentLoaded', function () {
+    console.log('DOM cargado - Iniciando aplicación');
+    iniciarListenersFirestore();
+    cargarMensajesIniciales(); // usa Firestore o localStorage segun disponibilidad
+    cargarFotosIniciales();    // idem
+    iniciarConfeti();
+    configurarMusica();
+    iniciarFuegosArtificiales();
+    generarQRGaleryButton(); // crea QR (ver función)
+    console.log('Aplicación inicializada');
+});
+
+
+// ---------------- FIREBASE: listeners en tiempo real ----------------
+function iniciarListenersFirestore() {
+    // Fotos - colección 'fotos' ordenadas por timestamp
+    db.collection('fotos').orderBy('timestamp').onSnapshot(snapshot => {
+        console.log('Actualización fotos desde Firestore', snapshot.docs.length);
+        const fotos = [];
+        snapshot.forEach(doc => fotos.push(doc.data().url));
+        if (fotos.length > 0) {
+            // Guardar localmente también
+            localStorage.setItem('fotosGuardadas', JSON.stringify(fotos));
+            renderizarFotosDesdeArray(fotos);
+        } else {
+            // si no hay fotos en Firestore, usa fallback localStorage o iniciales
+            const guardadas = JSON.parse(localStorage.getItem('fotosGuardadas')) || fotosIniciales;
+            renderizarFotosDesdeArray(guardadas);
+        }
+    }, err => {
+        console.warn('No se pudo escuchar fotos (Firestore):', err);
+        // fallback: localStorage
+        const guardadas = JSON.parse(localStorage.getItem('fotosGuardadas')) || fotosIniciales;
+        renderizarFotosDesdeArray(guardadas);
+    });
+
+    // Mensajes - colección 'mensajes' ordenada por timestamp
+    db.collection('mensajes').orderBy('timestamp').onSnapshot(snapshot => {
+        console.log('Actualización mensajes desde Firestore', snapshot.docs.length);
+        const mensajes = [];
+        snapshot.forEach(doc => mensajes.push({ id: doc.id, ...doc.data() }));
+        if (mensajes.length > 0) {
+            localStorage.setItem('mensajesGuardados', JSON.stringify(mensajes));
+            renderizarMensajesDesdeArray(mensajes);
+        } else {
+            const guardados = JSON.parse(localStorage.getItem('mensajesGuardados')) || mensajesIniciales;
+            renderizarMensajesDesdeArray(guardados);
+        }
+    }, err => {
+        console.warn('No se pudo escuchar mensajes (Firestore):', err);
+        const guardados = JSON.parse(localStorage.getItem('mensajesGuardados')) || mensajesIniciales;
+        renderizarMensajesDesdeArray(guardados);
+    });
+}
+
+
+// ---------------- SUBIDA de foto a Firebase Storage y registro en Firestore ----------------
+async function subirFotoAFirebase(archivo) {
+    if (!archivo) throw new Error('Archivo vacío');
+
+    const timestamp = Date.now();
+    const nombre = `fotos/${timestamp}_${archivo.name}`;
+    const refStorage = storage.ref().child(nombre);
+
+    // Subida
+    const snapshot = await refStorage.put(archivo);
+    const url = await snapshot.ref.getDownloadURL();
+
+    // Guardar metadata en Firestore
+    await db.collection('fotos').add({
+        url,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    return url;
+}
+
+
+// ---------------- FUNCIONES DE RENDER / DOM para fotos y mensajes ----------------
+function renderizarFotosDesdeArray(arrayFotos) {
+    const track = document.getElementById('carrusel-track');
+    if (!track) return;
+    track.innerHTML = '';
+    arrayFotos.forEach((src, index) => agregarFotoAlDOM(src, index));
+    actualizarTotalSlides();
+    actualizarIndicadores();
+}
+
+function renderizarMensajesDesdeArray(arrayMensajes) {
+    const container = document.getElementById('mensajes-container');
+    if (!container) return;
+    container.innerHTML = '';
+    arrayMensajes.forEach(m => {
+        // si el objeto viene con id o sin id, lo manejamos
+        const mensaje = {
+            id: m.id || Date.now() + Math.random(),
+            autor: m.autor || m.nombre || m.autor || 'Anonimo',
+            texto: m.texto || m.mensaje || ''
+        };
+        agregarMensajeAlDOM(mensaje);
+    });
+}
+
+
+// ---------------- Funciones de fotos (añadir / borrar) ----------------
+function cargarFotosIniciales() {
+    console.log('Cargando fotos iniciales...');
+    // Intentamos usar lo guardado localmente (fallback si Firestore falla)
+    const guardadas = JSON.parse(localStorage.getItem('fotosGuardadas'));
+    if (guardadas && guardadas.length > 0) {
+        renderizarFotosDesdeArray(guardadas);
+        return;
     }
-];
+    // Si no hay guardadas aún, muestra las iniciales
+    renderizarFotosDesdeArray(fotosIniciales);
+}
 
-const fotosIniciales = [
-    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80",
-    "https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80",
-    "https://images.unsplash.com/photo-1506197603052-3cc9c3a201bd?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80",
-    "https://images.unsplash.com/photo-1519904981063-b0cf448d479e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80",
-    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1171&q=80"
-];
+function agregarFotoAlDOM(src, index) {
+    const track = document.getElementById('carrusel-track');
+    if (!track) return;
+
+    const slide = document.createElement('div');
+    slide.className = 'carrusel-slide';
+    slide.dataset.index = index;
+
+    slide.innerHTML = `
+        <img src="${src}" alt="Recuerdo ${index + 1}" onerror="this.src='https://via.placeholder.com/800x500?text=Imagen+no+disponible'">
+        <button class="eliminar-foto" onclick="eliminarFoto(${index})" title="Eliminar foto">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+
+    track.appendChild(slide);
+}
+
+function agregarFoto() {
+    const inputFoto = document.getElementById('input-foto');
+    const archivo = inputFoto.files[0];
+    if (!archivo) { alert('Por favor, selecciona una foto'); return; }
+
+    // Subimos a Firebase Storage y luego guardamos en Firestore
+    subirFotoAFirebase(archivo).then(url => {
+        console.log('Foto subida y guardada en Firestore:', url);
+        // localStorage guardará automáticamente gracias al listener de Firestore
+        inputFoto.value = '';
+        crearConfeti();
+    }).catch(err => {
+        console.error('Error subiendo foto:', err);
+        alert('Error subiendo la foto. Se guardará localmente como fallback.');
+
+        // fallback: guardar en localStorage como dataURL
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const src = e.target.result;
+            const guardadas = JSON.parse(localStorage.getItem('fotosGuardadas')) || fotosIniciales.slice();
+            guardadas.push(src);
+            localStorage.setItem('fotosGuardadas', JSON.stringify(guardadas));
+            renderizarFotosDesdeArray(guardadas);
+            inputFoto.value = '';
+        };
+        reader.readAsDataURL(archivo);
+    });
+}
+
+function eliminarFoto(index) {
+    fotoEliminando = index;
+    document.getElementById('modal-eliminar-foto').style.display = 'block';
+}
+
+function confirmarEliminarFoto() {
+    // Para eliminar en Firestore buscamos la foto por URL y la borramos
+    const slide = document.querySelector(`[data-index="${fotoEliminando}"]`);
+    if (slide) {
+        const img = slide.querySelector('img');
+        const url = img ? img.src : null;
+
+        // Intentamos eliminar el documento de la colección 'fotos'
+        db.collection('fotos').where('url', '==', url).get()
+            .then(snapshot => {
+                const batch = db.batch();
+                snapshot.forEach(doc => batch.delete(doc.ref));
+                return batch.commit();
+            })
+            .then(() => {
+                console.log('Fotos eliminadas en Firestore (si existían).');
+                // Storage: opcional eliminar el archivo en Storage si deseas (requiere extra steps para obtener ruta)
+                // Fallback: actualizar localStorage
+                const slides = document.querySelectorAll('.carrusel-slide');
+                slides.forEach((slide, idx) => {
+                    slide.dataset.index = idx;
+                    const btnEliminar = slide.querySelector('.eliminar-foto');
+                    if (btnEliminar) btnEliminar.setAttribute('onclick', `eliminarFoto(${idx})`);
+                });
+                actualizarTotalSlides();
+                if (slideActual >= totalSlides) slideActual = totalSlides - 1;
+                actualizarCarrusel();
+            })
+            .catch(err => {
+                console.warn('No se pudo eliminar de Firestore (fallback a DOM/localStorage):', err);
+                // fallback: eliminar del DOM/localStorage
+                slide.remove();
+                const slides = document.querySelectorAll('.carrusel-slide');
+                const fotos = Array.from(slides).map(s => s.querySelector('img').src);
+                localStorage.setItem('fotosGuardadas', JSON.stringify(fotos));
+                actualizarTotalSlides();
+                if (slideActual >= totalSlides) slideActual = totalSlides - 1;
+                actualizarCarrusel();
+            });
+    }
+    cerrarModal();
+    crearConfeti();
+}
+
+// ---------------- Funciones de mensajes (guardar en Firestore + localStorage) ----------------
+function cargarMensajesIniciales() {
+    const guardados = JSON.parse(localStorage.getItem('mensajesGuardados'));
+    if (guardados && guardados.length > 0) {
+        renderizarMensajesDesdeArray(guardados);
+    } else {
+        // usar iniciales hasta que el listener de Firestore aporte datos
+        renderizarMensajesDesdeArray(mensajesIniciales);
+    }
+}
+
+function agregarMensaje() {
+    const autor = document.getElementById('autor-mensaje').value.trim();
+    const texto = document.getElementById('texto-mensaje').value.trim();
+    if (!autor || !texto) { alert('Por favor, completa todos los campos'); return; }
+
+    // Guardar en Firestore
+    db.collection('mensajes').add({
+        autor,
+        texto,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+        document.getElementById('autor-mensaje').value = '';
+        document.getElementById('texto-mensaje').value = '';
+        crearConfeti();
+    }).catch(err => {
+        console.error('Error guardando mensaje en Firestore:', err);
+        // fallback: guardar en localStorage
+        const mensajes = JSON.parse(localStorage.getItem('mensajesGuardados')) || [];
+        const nuevo = { id: Date.now(), autor, texto };
+        mensajes.push(nuevo);
+        localStorage.setItem('mensajesGuardados', JSON.stringify(mensajes));
+        agregarMensajeAlDOM(nuevo);
+        crearConfeti();
+    });
+}
+
+function agregarMensajeAlDOM(mensaje) {
+    const container = document.getElementById('mensajes-container');
+    if (!container) return;
+
+    const mensajeDiv = document.createElement('div');
+    mensajeDiv.className = 'mensaje';
+    mensajeDiv.dataset.id = mensaje.id;
+
+    mensajeDiv.innerHTML = `
+        <div class="autor">${mensaje.autor}</div>
+        <div class="texto">${mensaje.texto}</div>
+        <div class="acciones">
+            <button class="btn-accion" onclick="editarMensaje(${mensaje.id})">
+                <i class="fas fa-edit"></i> Editar
+            </button>
+            <button class="btn-accion" onclick="eliminarMensaje(${mensaje.id})">
+                <i class="fas fa-trash"></i> Eliminar
+            </button>
+        </div>
+    `;
+    container.appendChild(mensajeDiv);
+}
+
+// editar/eliminar mensajes: para producción necesitarás guardar el id de Firestore;
+// aquí dejo una versión simple que solo hace cambios en DOM/localStorage al no tener id Firestore.
+function editarMensaje(id) {
+    const mensaje = document.querySelector(`[data-id="${id}"]`);
+    if (!mensaje) return;
+    const autor = mensaje.querySelector('.autor').textContent;
+    const texto = mensaje.querySelector('.texto').textContent;
+    document.getElementById('editar-autor').value = autor;
+    document.getElementById('editar-texto').value = texto;
+    mensajeEditando = id;
+    document.getElementById('modal-editar').style.display = 'block';
+}
+
+function guardarEdicion() {
+    const autor = document.getElementById('editar-autor').value.trim();
+    const texto = document.getElementById('editar-texto').value.trim();
+    if (!autor || !texto) { alert('Por favor, completa todos los campos'); return; }
+    const mensaje = document.querySelector(`[data-id="${mensajeEditando}"]`);
+    if (mensaje) {
+        mensaje.querySelector('.autor').textContent = autor;
+        mensaje.querySelector('.texto').textContent = texto;
+    }
+    // actualizar localStorage (simple)
+    const mensajes = JSON.parse(localStorage.getItem('mensajesGuardados')) || [];
+    const idx = mensajes.findIndex(m => m.id === mensajeEditando);
+    if (idx >= 0) {
+        mensajes[idx].autor = autor;
+        mensajes[idx].texto = texto;
+        localStorage.setItem('mensajesGuardados', JSON.stringify(mensajes));
+    }
+    cerrarModal();
+    crearConfeti();
+}
+
+function eliminarMensaje(id) {
+    mensajeEditando = id;
+    document.getElementById('modal-eliminar-mensaje').style.display = 'block';
+}
+
+function confirmarEliminarMensaje() {
+    const mensaje = document.querySelector(`[data-id="${mensajeEditando}"]`);
+    if (mensaje) mensaje.remove();
+    // actualizar localStorage (simple)
+    let mensajes = JSON.parse(localStorage.getItem('mensajesGuardados')) || [];
+    mensajes = mensajes.filter(m => m.id !== mensajeEditando);
+    localStorage.setItem('mensajesGuardados', JSON.stringify(mensajes));
+    cerrarModal();
+    crearConfeti();
+}
+
+// ---------------- CARRUSEL y utilidades  (mantén tus funciones previas: siguienteSlide, anteriorSlide, actualizarIndicadores, etc.) ----------------
+function actualizarTotalSlides() {
+    totalSlides = document.querySelectorAll('.carrusel-slide').length;
+    console.log('Total de slides:', totalSlides);
+}
+function actualizarCarrusel() {
+    const track = document.getElementById('carrusel-track');
+    if (track && totalSlides > 0) {
+        track.style.transform = `translateX(-${slideActual * 100}%)`;
+    }
+    actualizarIndicadores();
+}
+function siguienteSlide() {
+    actualizarTotalSlides();
+    if (totalSlides > 0) {
+        slideActual = (slideActual + 1) % totalSlides;
+        actualizarCarrusel();
+    }
+}
+function anteriorSlide() {
+    actualizarTotalSlides();
+    if (totalSlides > 0) {
+        slideActual = (slideActual - 1 + totalSlides) % totalSlides;
+        actualizarCarrusel();
+    }
+}
+function irASlide(indice) { slideActual = indice; actualizarCarrusel(); }
+function actualizarIndicadores() {
+    actualizarTotalSlides();
+    const indicadoresContainer = document.getElementById('carrusel-indicadores');
+    if (!indicadoresContainer) return;
+    indicadoresContainer.innerHTML = '';
+    const slides = document.querySelectorAll('.carrusel-slide');
+    slides.forEach((_, indice) => {
+        const indicador = document.createElement('div');
+        indicador.className = 'indicador';
+        if (indice === slideActual) indicador.classList.add('activo');
+        indicador.addEventListener('click', () => irASlide(indice));
+        indicadoresContainer.appendChild(indicador);
+    });
+}
+
+// ---------------- Modal y utilidades visuales (mantén tus funciones existentes) ----------------
+function cerrarModal() {
+    const modales = document.querySelectorAll('.modal');
+    modales.forEach(modal => modal.style.display = 'none');
+    mensajeEditando = null; fotoEliminando = null;
+}
+
+// (mantén crearConfeti, iniciarConfeti, fuegos artificiales, música, etc.)
+// ... pega aquí el resto de tus funciones visuales existentes (crearConfeti, iniciarConfeti, iniciarFuegosArtificiales, configurarMusica, iniciarMusica, pausarMusica, toggleMusica, etc.)
+
+// ---------------- Generar QR que apunta a la galería pública ----------------
+function generarQRGaleryButton() {
+    // Crea un contenedor (si no existe) para el QR en alguna parte de la UI.
+    // Aquí lo crearé debajo del elemento #inicio por ejemplo.
+    const inicio = document.getElementById('inicio');
+    if (!inicio) return;
+    const cont = document.createElement('div');
+    cont.id = 'qr-galeria-container';
+    cont.style.position = 'fixed';
+    cont.style.bottom = '20px';
+    cont.style.right = '20px';
+    cont.style.background = 'rgba(255,255,255,0.9)';
+    cont.style.padding = '10px';
+    cont.style.borderRadius = '10px';
+    cont.style.boxShadow = '0 8px 20px rgba(0,0,0,0.2)';
+    cont.innerHTML = `<div id="qrcode" style="width:120px;height:120px;"></div><div style="text-align:center;font-size:0.8rem;margin-top:5px">Galería pública</div>`;
+    document.body.appendChild(cont);
+
+    // URL pública (cámbiala por la URL real donde alojes gallery.html)
+    // Si usas Firebase Hosting p.ej: "https://tu-proyecto.web.app/gallery.html"
+    const urlGaleriaPublica = window.location.origin + '/gallery.html'; // modifica si es necesario
+
+    // Generar QR
+    new QRCode(document.getElementById("qrcode"), {
+        text: urlGaleriaPublica,
+        width: 120,
+        height: 120
+    });
+}
+
+
+
+
+
+
 
 // Inicialización
 document.addEventListener('DOMContentLoaded', function() {
@@ -368,7 +770,6 @@ function confirmarEliminarMensaje() {
     crearConfeti();
 }
 
-// Funciones de fotos
 function cargarFotosIniciales() {
     console.log('Cargando fotos iniciales...');
     const track = document.getElementById('carrusel-track');
@@ -376,17 +777,39 @@ function cargarFotosIniciales() {
         console.error('No se encontró el track del carrusel');
         return;
     }
-    
+
     track.innerHTML = '';
-    
-    fotosIniciales.forEach((foto, index) => {
+
+    const fotosGuardadas = obtenerFotosGuardadas();
+    const fotosACargar = fotosGuardadas || fotosIniciales;
+
+    fotosACargar.forEach((foto, index) => {
         agregarFotoAlDOM(foto, index);
     });
-    
+
     actualizarTotalSlides();
     actualizarIndicadores();
-    console.log('Fotos iniciales cargadas:', fotosIniciales.length);
+    console.log('Fotos cargadas:', fotosACargar.length);
 }
+
+// ===== FUNCIONES PARA GUARDAR Y CARGAR FOTOS =====
+
+function guardarFotosEnLocalStorage() {
+    const slides = document.querySelectorAll('.carrusel-slide img');
+    const fotos = [];
+
+    slides.forEach(img => {
+        fotos.push(img.src);
+    });
+
+    localStorage.setItem('fotosGuardadas', JSON.stringify(fotos));
+}
+
+function obtenerFotosGuardadas() {
+    const guardadas = JSON.parse(localStorage.getItem('fotosGuardadas'));
+    return guardadas && guardadas.length > 0 ? guardadas : null;
+}
+
 
 function agregarFotoAlDOM(src, index) {
     const track = document.getElementById('carrusel-track');
@@ -413,32 +836,36 @@ function agregarFotoAlDOM(src, index) {
 function agregarFoto() {
     const inputFoto = document.getElementById('input-foto');
     const archivo = inputFoto.files[0];
-    
+
     if (!archivo) {
         alert('Por favor, selecciona una foto');
         return;
     }
-    
+
     const reader = new FileReader();
-    
-    reader.onload = function(e) {
+
+    reader.onload = function (e) {
         const track = document.getElementById('carrusel-track');
         if (!track) return;
-        
+
         const nuevoIndex = track.children.length;
-        
+
         agregarFotoAlDOM(e.target.result, nuevoIndex);
-        
+
         actualizarTotalSlides();
         slideActual = totalSlides - 1;
         actualizarCarrusel();
-        
+
+        // ✅ Guardar cambio
+        guardarFotosEnLocalStorage();
+
         inputFoto.value = '';
         crearConfeti();
     };
-    
+
     reader.readAsDataURL(archivo);
 }
+
 
 function eliminarFoto(index) {
     fotoEliminando = index;
@@ -449,7 +876,7 @@ function confirmarEliminarFoto() {
     const slide = document.querySelector(`[data-index="${fotoEliminando}"]`);
     if (slide) {
         slide.remove();
-        
+
         const slides = document.querySelectorAll('.carrusel-slide');
         slides.forEach((slide, index) => {
             slide.dataset.index = index;
@@ -458,17 +885,21 @@ function confirmarEliminarFoto() {
                 btnEliminar.setAttribute('onclick', `eliminarFoto(${index})`);
             }
         });
-        
+
         actualizarTotalSlides();
         if (slideActual >= totalSlides) {
             slideActual = totalSlides - 1;
         }
         actualizarCarrusel();
+
+        // ✅ Guardar cambio
+        guardarFotosEnLocalStorage();
     }
-    
+
     cerrarModal();
     crearConfeti();
 }
+
 
 // Funciones del carrusel
 function actualizarTotalSlides() {
@@ -868,3 +1299,8 @@ window.onclick = function(event) {
 
 // Autoplay del carrusel
 setInterval(siguienteSlide, 5000);
+
+
+
+
+

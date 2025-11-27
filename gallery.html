@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8">
+    <title>Galería Pública - Martin</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f7f7f7;
+            padding: 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            display: block;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Galería Pública</h1>
+        <p>Compartida con amor 💖</p>
+    </header>
+    <div id="grid" class="grid"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        // MISMO firebaseConfig (pega aquí el mismo objeto)
+        const firebaseConfig = {
+            apiKey: "TU_API_KEY",
+            authDomain: "TU_AUTH_DOMAIN",
+            projectId: "TU_PROJECT_ID",
+            storageBucket: "TU_STORAGE_BUCKET",
+            messagingSenderId: "TU_MSG_SENDER_ID",
+            appId: "TU_APP_ID"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        const grid = document.getElementById('grid');
+
+        function cargarGaleria() {
+            db.collection('fotos').orderBy('timestamp').get().then(snapshot => {
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const url = data.url;
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `<img src="${url}" alt="foto">`;
+                    grid.appendChild(card);
+                });
+            }).catch(err => {
+                console.error('Error cargando galería:', err);
+                grid.innerHTML = '<p>No se pudo cargar la galería. Comprueba las reglas de Firestore o tu conexión.</p>';
+            });
+        }
+
+        cargarGaleria();
+    </script>
+</body>
+
+</html>
