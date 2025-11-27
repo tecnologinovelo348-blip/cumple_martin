@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carta de Cumpleaños para Martin</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <!-- Portada Personalizada para Martin -->
+    <section id="portada" class="section active">
+        <div class="fuegos-portada-container" id="fuegos-portada"></div>
+
+        <div class="portada-contenido">
+            <div class="titulo-portada">
+                <h1 class="nombre-martin">Mara</h1>
+                <div class="subtitulo-portada">¡Feliz Cumpleaños!</div>
+            </div>
+
+            <div class="decoracion-portada">
+                <div class="pastelito pastelito1"></div>
+                <div class="pastelito pastelito2"></div>
+                <div class="pastelito pastelito3"></div>
+            </div>
+
+            <div class="mensaje-portada">
+                <p>Un día especial para una persona especial</p>
+                <p>¡Celebremos juntos tus nuevos comienzos!</p>
+            </div>
+
+            <button class="btn btn-primary btn-entrar" onclick="mostrarSeccion('inicio')">
+             <i class="fas fa-gift"></i> Entrar a la Celebración
+            </button>
+        </div>
+    </section>
+
+    <!-- Pantalla de Inicio -->
+    <section id="inicio" class="section">
+        <div class="fuegos-artificiales-container" id="fuegos-artificiales"></div>
+
+        <div class="perfil-container">
+            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1171&q=80"
+                alt="Foto del Cumpleañero" class="perfil-img">
+        </div>
+
+        <h1>¡Feliz Cumpleaños!</h1>
+
+        <div class="botones-inicio">
+            <button class="btn btn-primary" onclick="mostrarSeccion('mensajes')">
+                <i class="fas fa-envelope"></i> Ver Mensajes
+            </button>
+            <button class="btn btn-secondary" onclick="mostrarSeccion('recuerdos')">
+                <i class="fas fa-images"></i> Ver Recuerdos
+            </button>
+            <button class="btn btn-success" onclick="mostrarSeccion('gracias')">
+                <i class="fas fa-heart"></i> Gracias
+            </button>
+        </div>
+    </section>
+
+    <!-- Sección de Mensajes -->
+    <section id="mensajes" class="section">
+        <h2 style="font-size: 2.5rem; margin-bottom: 20px;">Mensajes de Felicitación</h2>
+
+        <div class="mensajes-container" id="mensajes-container">
+            <!-- Los mensajes se agregarán aquí dinámicamente -->
+        </div>
+
+        <div class="form-mensaje">
+            <input type="text" id="autor-mensaje" placeholder="Tu nombre">
+            <textarea id="texto-mensaje" placeholder="Escribe tu mensaje de felicitación"></textarea>
+            <button class="btn btn-primary" onclick="agregarMensaje()">
+                <i class="fas fa-paper-plane"></i> Enviar Mensaje
+            </button>
+        </div>
+
+        <div class="navegacion">
+            <button class="btn btn-secondary" onclick="mostrarSeccion('inicio')">
+                <i class="fas fa-home"></i> Volver al Inicio
+            </button>
+            <button class="btn btn-primary" onclick="mostrarSeccion('recuerdos')">
+                <i class="fas fa-images"></i> Ver Recuerdos
+            </button>
+            <button class="btn btn-success" onclick="mostrarSeccion('gracias')">
+                <i class="fas fa-heart"></i> Gracias
+            </button>
+        </div>
+    </section>
+
+    <!-- Sección de Recuerdos -->
+    <section id="recuerdos" class="section">
+        <div class="encabezado-recuerdos">
+            <h2 style="font-size: 2.5rem; margin-bottom: 10px;">Recuerdos Especiales</h2>
+            <div class="controles-musica">
+                <button id="btn-musica" class="btn btn-musica" onclick="toggleMusica()" title="Controlar música">
+                    <i class="fas fa-music"></i>
+                    <span id="texto-musica">Música: ON</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="carrusel-container">
+            <div class="carrusel-track" id="carrusel-track">
+                <!-- Las fotos se agregarán aquí dinámicamente -->
+            </div>
+
+            <div class="carrusel-controls">
+                <button class="carrusel-btn" onclick="anteriorSlide()">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button class="carrusel-btn" onclick="siguienteSlide()">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="carrusel-indicadores" id="carrusel-indicadores"></div>
+
+        <div class="form-foto">
+            <input type="file" id="input-foto" accept="image/*">
+            <button class="btn btn-primary" onclick="agregarFoto()">
+                <i class="fas fa-plus"></i> Agregar Foto
+            </button>
+        </div>
+
+        <div class="navegacion">
+            <button class="btn btn-secondary" onclick="mostrarSeccion('inicio')">
+                <i class="fas fa-home"></i> Volver al Inicio
+            </button>
+            <button class="btn btn-primary" onclick="mostrarSeccion('mensajes')">
+                <i class="fas fa-envelope"></i> Ver Mensajes
+            </button>
+            <button class="btn btn-success" onclick="mostrarSeccion('gracias')">
+                <i class="fas fa-heart"></i> Gracias
+            </button>
+        </div>
+    </section>
+
+    <!-- Sección de Gracias -->
+    <section id="gracias" class="section">
+        <div class="fuegos-corazon-container" id="fuegos-corazon"></div>
+
+        <div class="gracias-contenido">
+            <div class="pastel-container">
+                <div class="pastel">
+                    <div class="capa-pastel capa1"></div>
+                    <div class="capa-pastel capa2"></div>
+                    <div class="capa-pastel capa3"></div>
+                    <div class="capa-pastel capa4"></div>
+                    <div class="capa-pastel capa5"></div>
+                    <div class="velas">
+                        <div class="vela"></div>
+                        <div class="vela"></div>
+                        <div class="vela"></div>
+                        <div class="vela"></div>
+                        <div class="vela"></div>
+                    </div>
+                    <div class="llama"></div>
+                    <div class="llama"></div>
+                    <div class="llama"></div>
+                    <div class="llama"></div>
+                    <div class="llama"></div>
+                </div>
+            </div>
+
+            <h2 class="titulo-gracias">¡Gracias por Celebrar Conmigo!</h2>
+            <p class="mensaje-gracias">
+                Cada mensaje, cada foto y cada recuerdo compartido hoy ha hecho de este cumpleaños
+                un día inolvidable. Agradezco de corazón a cada uno de ustedes por ser parte de mi vida
+                y por hacer que cada momento sea especial.
+            </p>
+            <p class="mensaje-gracias">
+                Con todo mi cariño y gratitud,
+            </p>
+            <p class="firma-gracias">¡Feliz Cumpleaños para Mí! 🎂</p>
+        </div>
+
+        <div class="navegacion">
+            <button class="btn btn-secondary" onclick="mostrarSeccion('inicio')">
+                <i class="fas fa-home"></i> Volver al Inicio
+            </button>
+            <button class="btn btn-primary" onclick="mostrarSeccion('mensajes')">
+                <i class="fas fa-envelope"></i> Ver Mensajes
+            </button>
+            <button class="btn btn-secondary" onclick="mostrarSeccion('recuerdos')">
+                <i class="fas fa-images"></i> Ver Recuerdos
+            </button>
+        </div>
+    </section>
+
+    <!-- Modal para editar mensaje -->
+    <div id="modal-editar" class="modal">
+        <div class="modal-contenido">
+            <h3>Editar Mensaje</h3>
+            <input type="text" id="editar-autor" placeholder="Tu nombre">
+            <textarea id="editar-texto" placeholder="Mensaje"></textarea>
+            <div class="modal-botones">
+                <button class="btn btn-primary" onclick="guardarEdicion()">
+                    <i class="fas fa-save"></i> Guardar
+                </button>
+                <button class="btn btn-secondary" onclick="cerrarModal()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para confirmar eliminar mensaje -->
+    <div id="modal-eliminar-mensaje" class="modal">
+        <div class="modal-contenido">
+            <h3>¿Eliminar mensaje?</h3>
+            <p>Esta acción no se puede deshacer</p>
+            <div class="modal-botones">
+                <button class="btn btn-danger" onclick="confirmarEliminarMensaje()">
+                    <i class="fas fa-trash"></i> Eliminar
+                </button>
+                <button class="btn btn-secondary" onclick="cerrarModal()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para confirmar eliminar foto -->
+    <div id="modal-eliminar-foto" class="modal">
+        <div class="modal-contenido">
+            <h3>¿Eliminar foto?</h3>
+            <p>Esta acción no se puede deshacer</p>
+            <div class="modal-botones">
+                <button class="btn btn-danger" onclick="confirmarEliminarFoto()">
+                    <i class="fas fa-trash"></i> Eliminar
+                </button>
+                <button class="btn btn-secondary" onclick="cerrarModal()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Elemento de audio para la música de recuerdos -->
+    <audio id="musica-recuerdos" loop>
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" type="audio/mpeg">
+        Tu navegador no soporta el elemento de audio.
+    </audio>
+
+    <script src="js/scrip.js"></script>
+</body>
+
+</html>
